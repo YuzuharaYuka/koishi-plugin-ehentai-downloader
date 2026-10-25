@@ -10,7 +10,7 @@
 npm install koishi-plugin-ehentai-downloader
 ```
 
-表站凭据可选，访问里站需要填写 Cookie。与其它同样依赖 `@napi-rs/canvas` 的插件（例如 nhentai-downloader）共存时，更新前先停 Koishi，原因见常见问题。
+表站凭据可选，访问里站需要填写 Cookie。
 
 ## 指令
 
@@ -63,24 +63,6 @@ eh.download https://e-hentai.org/g/4280941/11f8979b01/ -z -r 1-20
 - 进度写日志，聊天里只发结果；打开 `debug` 可看到 `[请求]`、`[列表]`、`[取图]`、`[下载]` 日志。
 - 单页下载失败会丢弃该页缓存重新解析，通常能换到另一台 H@H 主机；仍失败时用 `eh.retry` 补。
 - 里站 Cookie 失效时会跳到论坛页，插件会提示更新配置。
-
-## 常见问题
-
-**更新时报 `EPERM: operation not permitted, unlink ...skia.win32-x64-msvc.node`**
-
-Windows 会锁住 Koishi 已加载的原生库，而 yarn 在 link 阶段要删除或覆盖 `@napi-rs/canvas` 的 `.node`，于是失败。装了 `@napi-rs/canvas`、`sharp` 的插件都会碰到。
-
-与 nhentai-downloader 共存时最容易触发：两者都依赖 `@napi-rs/canvas`，安装新插件会把旧的嵌套副本合并到根目录，被合并的正是被锁住的那一份。
-
-处理：先停掉 Koishi，再点更新（或在项目目录执行 `yarn install`），完成后启动。
-
-**启动日志报 `Cannot find module '@napi-rs/canvas'`**
-
-依赖没装全，在 Koishi 项目目录执行 `yarn install` 后重启。缺这个包时插件仍能启动：搜索退回文字列表，`-z`、`-i` 正常，只有 `-p` 会提示缺依赖。
-
-**市场提示失败，但包已经写进 package.json**
-
-依赖已写入、`node_modules` 没链接完。停 Koishi → `yarn install` → 启动，然后到插件配置里启用本插件。
 
 ## 许可
 
