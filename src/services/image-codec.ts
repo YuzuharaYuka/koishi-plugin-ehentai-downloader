@@ -4,8 +4,8 @@
  * - PDF 只嵌入 jpeg / png，其余格式先转 JPEG；
  * - 解码与编码都是原生实现，不需要再引入 sharp。
  */
-import { Image, createCanvas } from '@napi-rs/canvas'
 import { getErrorMessage, logger } from '../utils'
+import { type Image, requireCanvas } from './canvas'
 
 /** 像素处理并发数：canvas 的编码走 libuv 线程池，超过线程池大小会拖慢甚至崩溃 */
 export const IMAGE_PROCESS_CONCURRENCY = 4
@@ -31,6 +31,7 @@ export function releaseImage(image: { src: Uint8Array | string } | undefined): v
 /** 解码图片，失败或超时返回 undefined */
 export async function decodeImage(buffer: Buffer): Promise<Image | undefined> {
   if (!buffer.length) return undefined
+  const { Image } = requireCanvas()
   const image = new Image()
   image.src = buffer
   try {
@@ -63,6 +64,7 @@ export async function resizeToJpeg(
     const scale = Math.min(1, width / image.width)
     const targetWidth = Math.max(1, Math.round(image.width * scale))
     const targetHeight = Math.max(1, Math.round(image.height * scale))
+    const { createCanvas } = requireCanvas()
     const canvas = createCanvas(targetWidth, targetHeight)
     const ctx = canvas.getContext('2d')
     ctx.fillStyle = '#ffffff'
@@ -102,6 +104,7 @@ export async function encodeJpeg(
   const scale = maxEdge ? Math.min(1, maxEdge / Math.max(image.width, image.height)) : 1
   const width = Math.max(1, Math.round(image.width * scale))
   const height = Math.max(1, Math.round(image.height * scale))
+  const { createCanvas } = requireCanvas()
   const canvas = createCanvas(width, height)
   const ctx = canvas.getContext('2d')
   ctx.fillStyle = '#ffffff'

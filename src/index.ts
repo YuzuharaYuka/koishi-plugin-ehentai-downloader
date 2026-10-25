@@ -8,6 +8,7 @@ import type { Config } from './config'
 import { PLUGIN_VERSION, SITES } from './constants'
 import { installLinkRecognition } from './middleware'
 import { EhPlugin } from './plugin'
+import { canvasAvailable } from './services/canvas'
 import { registerCommands } from './commands'
 import { getErrorMessage, logger, resolveDownloadPath, setLoggerLevel } from './utils'
 
@@ -79,6 +80,9 @@ export function apply(ctx: Context, config: Config): void {
       const site = plugin.http.primarySite
       logger.info(`站点 ${SITES[site].label}，输出格式 ${config.defaultFormat}，并发 ${config.downloadConcurrency}，取图 ${config.imageQuality}`)
       if (config.debug) logger.debug('调试日志已开启')
+      if (!canvasAvailable()) {
+        logger.warn('未加载 @napi-rs/canvas：菜单改用文字列表，PDF 不可用；在项目目录执行 yarn install 后重启即可恢复')
+      }
 
       if (!plugin.http.hasCredentials(site)) {
         logger.warn(`未配置 ${SITES[site].label}凭据：只能浏览公开画廊，原图与里站不可用`)
@@ -91,8 +95,8 @@ export function apply(ctx: Context, config: Config): void {
     } catch (error) {
       const message = getErrorMessage(error)
       logger.error(`初始化失败: ${message}`)
-      if (/Cannot find module '(@napi-rs\/canvas|pdfkit|archiver|cheerio)/.test(message)) {
-        logger.error('缺少依赖，请在插件目录执行 yarn install 后重启')
+      if (/Cannot find module '(pdfkit|archiver|archiver-zip-encrypted|cheerio)/.test(message)) {
+        logger.error('缺少依赖：在 Koishi 项目目录执行 yarn install 后重启')
       }
     }
   })

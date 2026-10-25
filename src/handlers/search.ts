@@ -15,6 +15,7 @@ import {
 } from '../constants'
 import type { EhPlugin } from '../plugin'
 import type { SearchResult } from '../services/gallery'
+import { canvasAvailable } from '../services/canvas'
 import { decodeImage, releaseImage } from '../services/image-codec'
 import type { MenuListItem } from '../services/menu'
 import type { GalleryItem } from '../types'
@@ -201,7 +202,10 @@ async function runListing(session: Session, plugin: EhPlugin, source: ListingSou
   const config = plugin.config
   const pages: SearchResult[] = [source.first]
   const menuStyle = options.menuStyle ?? config.menuStyle
-  const useMenu = menuStyle !== 'text'
+  if (menuStyle !== 'text' && !canvasAvailable()) {
+    logger.warn('[搜索] 缺少 @napi-rs/canvas，菜单改用文字列表')
+  }
+  const useMenu = menuStyle !== 'text' && canvasAvailable()
   let index = 0
   let misses = 0
   let needRender = true

@@ -5,12 +5,12 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { h, type Session } from 'koishi'
-import type { Image } from '@napi-rs/canvas'
 import type { Config } from '../config'
 import { FORWARD_BATCH_DELAY_MS, FORWARD_BATCH_SIZE, MESSAGES, QUALITY_ALIASES } from '../constants'
 import type { EhPlugin } from '../plugin'
 import { GalleryExpungedError, GalleryNotFoundError, GalleryUnsupportedError } from '../services/gallery'
 import { SiteAuthError } from '../services/http'
+import { canvasAvailable, type Image } from '../services/canvas'
 import { decodeImage, releaseImage } from '../services/image-codec'
 import type { DownloadedPage, DownloadOptions, DownloadOutcome, GalleryDetail, ImageQuality } from '../types'
 import {
@@ -116,13 +116,17 @@ export async function handleDownload(session: Session, plugin: EhPlugin, input: 
     return
   }
   const config = plugin.config
+  const format = resolveOutputFormat(config, flags)
+  if (format === 'pdf' && !canvasAvailable()) {
+    await session.send('生成 PDF 需要 @napi-rs/canvas，但当前加载失败。在 Koishi 项目目录执行 yarn install 后重启；也可以先用 -z 输出 ZIP。')
+    return
+  }
   const target = resolveListingInput(session, plugin, input)
   await session.send(quote(session) + MESSAGES.resolvingGallery)
 
   const gallery = await resolveGallery(session, plugin, target)
   if (!gallery) return
 
-  const format = resolveOutputFormat(config, flags)
   const quality = normalizeQuality(flags.quality) ?? config.imageQuality
   const passwordInFlags = flags.key?.trim() || undefined
   const password = flags.noPassword ? undefined : passwordInFlags ?? (config.defaultPassword || undefined)

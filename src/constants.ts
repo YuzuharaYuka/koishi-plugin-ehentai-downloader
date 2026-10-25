@@ -6,7 +6,7 @@ import type { ImageQuality, OutputFormat, Site } from './types'
 
 export const PLUGIN_NAME = 'ehentai-downloader'
 export const PACKAGE_NAME = `koishi-plugin-${PLUGIN_NAME}`
-export const PLUGIN_VERSION = '1.0.0'
+export const PLUGIN_VERSION = '1.0.1'
 export const PLUGIN_HOMEPAGE = 'https://www.npmjs.com/package/koishi-plugin-ehentai-downloader'
 
 /** 站点基本信息 */

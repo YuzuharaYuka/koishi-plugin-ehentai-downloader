@@ -3,10 +3,10 @@
  * 版式参考 E-Hentai 网页端：米色底、深红描边表格、分类色块、标签胶囊；
  * 列表提供扩展型（逐行缩略图 + 标签）与缩略图型（三列封面）两种，详情按命名空间分组标签。
  */
-import { type Canvas, type Image, type SKRSContext2D, createCanvas } from '@napi-rs/canvas'
 import { MENU_JPEG_QUALITY, MENU_WIDTH, TAG_DISPLAY_LIMIT } from '../constants'
 import type { GalleryDetail, GalleryItem } from '../types'
 import { formatBytes, formatCount, singleLine } from '../utils'
+import { type Canvas, type Image, type SKRSContext2D, requireCanvas } from './canvas'
 
 const FONT = 'Arial, "Microsoft YaHei", "Malgun Gothic", "MS Gothic", sans-serif'
 
@@ -115,6 +115,7 @@ export class MenuRenderer {
     const tableHeight = rows * ROW_HEIGHT
     const height = tableTop + tableHeight + FOOTER_HEIGHT + MARGIN
 
+    const { createCanvas } = requireCanvas()
     const canvas = createCanvas(MENU_WIDTH, height)
     const ctx = canvas.getContext('2d')
     ctx.fillStyle = STYLE.pageBg
@@ -143,6 +144,7 @@ export class MenuRenderer {
     const top = HEADER_HEIGHT
     const height = top + rows * GRID_CARD_HEIGHT + (rows - 1) * GRID_GAP + FOOTER_HEIGHT + MARGIN
 
+    const { createCanvas } = requireCanvas()
     const canvas = createCanvas(MENU_WIDTH, height)
     const ctx = canvas.getContext('2d')
     ctx.fillStyle = STYLE.pageBg
@@ -167,6 +169,7 @@ export class MenuRenderer {
   async renderGallery(gallery: GalleryDetail, cover: Image | undefined, showTags = true): Promise<RenderedMenu> {
     const innerX = MARGIN + 20
     const innerWidth = MENU_WIDTH - innerX * 2
+    const { createCanvas } = requireCanvas()
     const scratch = createCanvas(10, 10).getContext('2d')
 
     const coverWidth = 330
