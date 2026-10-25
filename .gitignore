@@ -8,6 +8,10 @@ yarn-debug.log
 yarn-error.log
 tsconfig.tsbuildinfo
 
+bench/out
+bench/*.cjs
+data
+
 .eslintcache
 .DS_Store
 .idea

@@ -1,22 +1,37 @@
 {
   "name": "koishi-plugin-ehentai-downloader",
   "description": "E-Hentai 画廊搜索与下载，支持 PDF / ZIP / 图片输出。",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
-    "lib",
-    "dist"
+    "lib"
   ],
   "license": "MIT",
-  "scripts": {},
   "keywords": [
     "chatbot",
     "koishi",
-    "plugin"
+    "plugin",
+    "e-hentai",
+    "exhentai",
+    "download"
   ],
-  "devDependencies": {},
   "peerDependencies": {
-    "koishi": "4.18.11"
+    "koishi": "^4.18.0"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^1.0.11",
+    "archiver": "^7.0.1",
+    "archiver-zip-encrypted": "^2.0.0",
+    "cheerio": "^1.2.0",
+    "pdfkit": "^0.20.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YuzuharaYuka/koishi-plugin-ehentai-downloader.git"
+  },
+  "homepage": "https://github.com/YuzuharaYuka/koishi-plugin-ehentai-downloader",
+  "bugs": {
+    "url": "https://github.com/YuzuharaYuka/koishi-plugin-ehentai-downloader/issues"
   }
 }
