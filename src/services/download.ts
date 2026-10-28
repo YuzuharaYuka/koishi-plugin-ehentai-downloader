@@ -160,7 +160,8 @@ export class DownloadManager {
       if (options.format === 'pdf') {
         await buildPdf(files, outPath, {
           password: options.password,
-          maxEdge: this.config.pdfMaxEdge,
+          maxEdge: this.config.imageCompression.maxEdge,
+          compression: this.config.imageCompression,
           onProgress: (count, totalPages) => callbacks.onPackageProgress?.(count, totalPages),
         })
       } else {

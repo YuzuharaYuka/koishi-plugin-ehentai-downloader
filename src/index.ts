@@ -4,6 +4,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import type { Context } from 'koishi'
+import type {} from '@koishijs/plugin-console'
 import type { Config } from './config'
 import { PLUGIN_VERSION, SITES } from './constants'
 import { installLinkRecognition } from './middleware'
@@ -15,7 +16,10 @@ import { getErrorMessage, logger, resolveDownloadPath, setLoggerLevel } from './
 export * from './config'
 
 export const name = 'ehentai-downloader'
-export const inject = ['http']
+export const inject = {
+  required: ['http'],
+  optional: ['console'],
+}
 export const version = PLUGIN_VERSION
 
 const STALE_WORK_DIR_MS = 24 * 60 * 60 * 1000
@@ -31,6 +35,7 @@ E-Hentai / ExHentai 画廊搜索与下载，**内容涉及成人向内容，请�
 | \`eh.download <ID/链接>\` | \`eh下载\` | 下载画廊，\`-p\` PDF、\`-z\` ZIP、\`-i\` 逐张图片、\`-k\` 密码 |
 | \`eh.toplist [类型]\` | \`eh排行\` | 表站排行榜，类型如 \`all-time\`、\`past-month\` |
 | \`eh.popular\` | \`eh热门\` | 当前热门画廊 |
+| \`eh.random\` | \`eh随机\` | 随机抽一个画廊，回 \`Y\` 下载 |
 | \`eh.info <ID/链接>\` | \`eh详情\` | 查看画廊详情 |
 | \`eh.cancel\` | \`eh取消\` | 取消当前会话的下载 |
 | \`eh.retry\` | \`eh重试\` | 只补下上次失败的页 |
@@ -72,6 +77,13 @@ export function apply(ctx: Context, config: Config): void {
 
   installLinkRecognition(ctx, config)
   registerCommands(ctx, () => plugin)
+
+  ctx.inject(['console'], (ctx) => {
+    ctx.console.addEntry({
+      dev: path.resolve(__dirname, '../client/index.ts'),
+      prod: path.resolve(__dirname, '../dist'),
+    })
+  })
 
   ctx.on('ready', async () => {
     try {

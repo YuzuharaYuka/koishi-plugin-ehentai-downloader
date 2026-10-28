@@ -1,10 +1,10 @@
 /**
- * 插件配置：按「基础 / 账号 / 搜索与交互 / 下载 / 发送 / 存储 / 调试」分组，
+ * 插件配置：按「基础 / 账号 / 搜索 / 下载 / 图片 / 发送 / 存储 / 调试」分组，
  * 组内顺序统一为 下拉选择 → 文本 → 数值 → 开关。
  * Schema 里的默认值只是兜底，apply() 开头还会统一走一次 normalizeConfig。
  */
 import { Schema } from 'koishi'
-import { DEFAULT_CACHE_MAX_MB, DEFAULT_CACHE_TTL_HOURS, DEFAULT_CONCURRENCY, DEFAULT_DOWNLOAD_PATH, DEFAULT_IMAGE_QUALITY, DEFAULT_IMAGE_SEND_DELAY, DEFAULT_MAX_PAGES, DEFAULT_MENU_STYLE, DEFAULT_OUTPUT, DEFAULT_PAGE_INTERVAL_MS, DEFAULT_PDF_MAX_EDGE, DEFAULT_PROMPT_TIMEOUT, DEFAULT_RETRIES, DEFAULT_RETRY_DELAY_SECONDS, DEFAULT_SEARCH_RESULT_LIMIT, DEFAULT_SITE, DEFAULT_TIMEOUT_SECONDS, MENU_STYLES, type MenuStyle } from './constants'
+import { DEFAULT_CACHE_MAX_MB, DEFAULT_CACHE_TTL_HOURS, DEFAULT_CONCURRENCY, DEFAULT_DOWNLOAD_PATH, DEFAULT_FILE_SEND_METHOD, DEFAULT_IMAGE_QUALITY, DEFAULT_IMAGE_SEND_DELAY, DEFAULT_MAX_PAGES, DEFAULT_MENU_STYLE, DEFAULT_OUTPUT, DEFAULT_PAGE_INTERVAL_MS, DEFAULT_PDF_COMPRESS_THRESHOLD, DEFAULT_PDF_MAX_EDGE, PDF_JPEG_QUALITY, DEFAULT_PROMPT_TIMEOUT, DEFAULT_RETRIES, DEFAULT_RETRY_DELAY_SECONDS, DEFAULT_SEARCH_RESULT_LIMIT, DEFAULT_SITE, DEFAULT_TIMEOUT_SECONDS, MENU_STYLES, type MenuStyle } from './constants'
 import { clamp, toInt } from './utils'
 
 export interface Config {
@@ -38,8 +38,17 @@ export interface Config {
   defaultFormat: 'pdf' | 'zip' | 'img'
   /** 默认图片质量 */
   imageQuality: 'original' | 'resized'
-  /** PDF 内页长边上限，0 表示不缩放 */
-  pdfMaxEdge: number
+  /** PDF 内页压缩 */
+  imageCompression: {
+    /** 是否压缩 */
+    enabled: boolean
+    /** JPEG 质量 */
+    quality: number
+    /** 小于该体积（KB）的 JPEG 不再压缩 */
+    threshold: number
+    /** 内页长边上限，0 表示不缩放 */
+    maxEdge: number
+  }
   /** 下载并发 */
   downloadConcurrency: number
   /** 页面请求最小间隔（毫秒） */
@@ -58,6 +67,8 @@ export interface Config {
   imageSendDelay: number
   /** 逐张发送图片的模式 */
   imageSendMode: 'auto' | 'forward' | 'single'
+  /** PDF / ZIP 的发送方式 */
+  fileSendMethod: 'file' | 'buffer'
 
   /** 下载与缓存目录 */
   downloadPath: string
@@ -134,19 +145,13 @@ export const Config: Schema<Config> = Schema.intersect([
       .step(1)
       .description('每次展示结果条数')
       .default(DEFAULT_SEARCH_RESULT_LIMIT),
-    promptTimeout: Schema.number()
-      .min(5)
-      .max(300)
-      .step(5)
-      .description('等待回复的秒数')
-      .default(DEFAULT_PROMPT_TIMEOUT),
     showTags: Schema.boolean()
       .description('菜单与列表中显示标签')
       .default(true),
     useForwardForList: Schema.boolean()
       .description('文字列表用合并转发发送，仅 QQ / OneBot')
       .default(false),
-  }).description('搜索与交互'),
+  }).description('搜索'),
 
   Schema.object({
     imageQuality: Schema.union([
@@ -191,13 +196,33 @@ export const Config: Schema<Config> = Schema.intersect([
       .step(1)
       .description('重试间隔（秒）')
       .default(DEFAULT_RETRY_DELAY_SECONDS),
-    pdfMaxEdge: Schema.number()
-      .min(0)
-      .max(8000)
-      .step(100)
-      .description('PDF 内页长边上限，0 表示不缩放')
-      .default(DEFAULT_PDF_MAX_EDGE),
   }).description('下载'),
+
+  Schema.object({
+    imageCompression: Schema.object({
+      enabled: Schema.boolean()
+        .description('压缩 PDF 内页')
+        .default(true),
+      quality: Schema.number()
+        .min(60)
+        .max(100)
+        .step(1)
+        .description('JPEG 质量')
+        .default(PDF_JPEG_QUALITY),
+      threshold: Schema.number()
+        .min(0)
+        .max(5000)
+        .step(50)
+        .description('小于该体积（KB）的 JPEG 不再压缩')
+        .default(DEFAULT_PDF_COMPRESS_THRESHOLD),
+      maxEdge: Schema.number()
+        .min(0)
+        .max(8000)
+        .step(100)
+        .description('内页长边（像素），0 为不缩放')
+        .default(DEFAULT_PDF_MAX_EDGE),
+    }).description('PDF 内页压缩'),
+  }).description('图片'),
 
   Schema.object({
     defaultFormat: Schema.union([
@@ -227,6 +252,18 @@ export const Config: Schema<Config> = Schema.intersect([
     prependGid: Schema.boolean()
       .description('文件名带 gid')
       .default(true),
+    promptTimeout: Schema.number()
+      .min(5)
+      .max(300)
+      .step(5)
+      .description('等待回复的秒数')
+      .default(DEFAULT_PROMPT_TIMEOUT),
+    fileSendMethod: Schema.union([
+      Schema.const('file').description('本地路径'),
+      Schema.const('buffer').description('文件内容'),
+    ])
+      .description('PDF / ZIP 的发送方式，协议端读不到本地路径时用 buffer')
+      .default(DEFAULT_FILE_SEND_METHOD),
   }).description('发送'),
 
   Schema.object({
@@ -291,8 +328,16 @@ export function normalizeConfig(config: Config): Config {
 
   if (!['pdf', 'zip', 'img'].includes(config.defaultFormat)) result.defaultFormat = DEFAULT_OUTPUT
   if (!['original', 'resized'].includes(config.imageQuality)) result.imageQuality = DEFAULT_IMAGE_QUALITY
-  result.pdfMaxEdge = clamp(toInt(config.pdfMaxEdge, DEFAULT_PDF_MAX_EDGE), 0, 8000)
+  const compression = config.imageCompression ?? {}
+  const legacyMaxEdge = (config as unknown as { pdfMaxEdge?: number }).pdfMaxEdge
+  result.imageCompression = {
+    enabled: compression.enabled !== false,
+    quality: clamp(toInt(compression.quality, PDF_JPEG_QUALITY), 60, 100),
+    threshold: clamp(toInt(compression.threshold, DEFAULT_PDF_COMPRESS_THRESHOLD), 0, 5000),
+    maxEdge: clamp(toInt(compression.maxEdge ?? legacyMaxEdge, DEFAULT_PDF_MAX_EDGE), 0, 8000),
+  }
   if (!['auto', 'forward', 'single'].includes(config.imageSendMode)) result.imageSendMode = 'auto'
+  if (!['file', 'buffer'].includes(config.fileSendMethod)) result.fileSendMethod = DEFAULT_FILE_SEND_METHOD
 
   result.downloadConcurrency = clamp(toInt(config.downloadConcurrency, DEFAULT_CONCURRENCY), 1, 8)
   result.requestInterval = clamp(toInt(config.requestInterval, DEFAULT_PAGE_INTERVAL_MS), 200, 5000)

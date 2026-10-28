@@ -21,6 +21,7 @@ npm install koishi-plugin-ehentai-downloader
 | `eh.info` | `eh详情` | 查看画廊详情 |
 | `eh.toplist` | `eh排行` | 榜单，`all-time` / `past-year` / `past-month` / `yesterday`，`-p` 页码 |
 | `eh.popular` | `eh热门` | 当前热门 |
+| `eh.random` | `eh随机` | 随机抽一个画廊，回 `Y` 下载 |
 | `eh.cancel` | `eh取消` | 取消进行中的下载 |
 | `eh.retry` | `eh重试` | 补下最近一次失败的页 |
 
@@ -41,10 +42,12 @@ eh.download https://e-hentai.org/g/4280941/11f8979b01/ -z -r 1-20
 | `searchLanguage` | `all` | 默认语言筛选，`-l` 可覆盖 |
 | `searchResultLimit` | `9` | 每次展示条数 |
 | `imageQuality` | `resized` | `resized` 页面缩放版 / `original` 原图，`-q` 可覆盖 |
+| `imageCompression` | 见下 | PDF 内页压缩：`enabled`、`quality`（90）、`threshold`（500 KB）、`maxEdge`（3000 px） |
 | `downloadConcurrency` | `6` | 同时下载的页数 |
 | `maxPages` | `300` | 单次页数上限，`0` 不限制 |
 | `defaultFormat` | `pdf` | `pdf` / `zip` / `img`，`-p` / `-z` / `-i` 可覆盖 |
 | `defaultPassword` | 空 | PDF / ZIP 密码，`-k` 可覆盖 |
+| `fileSendMethod` | `file` | `file` 发本地路径 / `buffer` 发文件内容，协议端读不到本地路径时用后者 |
 | `downloadPath` | `./data/temp/ehentai-downloader` | 输出目录，相对路径基于 `baseDir` |
 | `ehentaiMemberId` 等五项 | 空 | 站点 Cookie，见下 |
 | `enableLinkRecognition` | `false` | 识别消息里的画廊链接并自动下载 |
@@ -58,7 +61,7 @@ eh.download https://e-hentai.org/g/4280941/11f8979b01/ -z -r 1-20
 
 - 站点只提供两种图：原图（多为 2000–4000px 的 PNG）和页面缩放版（1280–2048px）。默认取缩放版，`-q original` 取原图。
 - 图片按 `downloadConcurrency` 并发下载，页面请求按 `requestInterval`（默认 300ms）串行发出。默认值实测约 2.5 页/秒；调低间隔或调高并发更快，也更容易被 509。
-- PDF 内页统一转成 JPEG（q90、长边 `pdfMaxEdge`），ZIP 保留原文件。
+- PDF 内页统一转成 JPEG（`imageCompression` 控制质量与长边，小于 `threshold` 的 JPEG 直接嵌入），ZIP 保留原文件。
 - 下载规模只按页数限制（`maxPages`），不设体积上限。
 - 进度写日志，聊天里只发结果；打开 `debug` 可看到 `[请求]`、`[列表]`、`[取图]`、`[下载]` 日志。
 - 单页下载失败会丢弃该页缓存重新解析，通常能换到另一台 H@H 主机；仍失败时用 `eh.retry` 补。

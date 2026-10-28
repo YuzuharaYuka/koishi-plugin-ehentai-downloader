@@ -13,7 +13,7 @@ import {
 import type { EhPlugin } from './plugin'
 import { handleSearch, handleToplist, handlePopular } from './handlers/search'
 import { promptAnswer } from './handlers/common'
-import { handleDownload, handleGalleryInfo } from './handlers/download'
+import { handleDownload, handleGalleryInfo, handleRandom } from './handlers/download'
 import { handleCancel, handleRetry } from './handlers/manage'
 import { logger } from './utils'
 
@@ -130,6 +130,13 @@ export function registerCommands(ctx: Context, getPlugin: PluginGetter): void {
       const plugin = getPlugin()
       if (!plugin.ensureReady()) return session.send(MESSAGES.notInitialized)
       await handlePopular(session, plugin)
+    })
+
+  ctx.command('eh.random', '随机抽一个画廊')
+    .alias('eh随机', 'ehrandom')
+    .action(async ({ session }) => {
+      if (!session) return
+      await handleRandom(session, getPlugin())
     })
 
   ctx.command('eh.info <input:text>', '查看单个画廊的详细信息')

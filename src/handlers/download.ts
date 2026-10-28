@@ -6,7 +6,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { h, type Session } from 'koishi'
 import type { Config } from '../config'
-import { FORWARD_BATCH_DELAY_MS, FORWARD_BATCH_SIZE, MESSAGES, QUALITY_ALIASES } from '../constants'
+import { BUFFER_WARN_SIZE, FORWARD_BATCH_DELAY_MS, FORWARD_BATCH_SIZE, MESSAGES, QUALITY_ALIASES } from '../constants'
 import type { EhPlugin } from '../plugin'
 import { GalleryExpungedError, GalleryNotFoundError, GalleryUnsupportedError } from '../services/gallery'
 import { SiteAuthError } from '../services/http'
@@ -28,6 +28,7 @@ import {
   formatPasswordLine,
   gallerySiteLabel,
   parsePageRange,
+  promptAnswer,
   quote,
   renderGalleryInfo,
   resolveOutputFormat,
@@ -207,20 +208,27 @@ async function deliverOutcome(session: Session, config: Config, outcome: Downloa
     await sendImages(session, config, outcome.imageFiles)
     if (outcome.partialDir) await removePath(outcome.partialDir)
   } else if (outcome.filePath) {
-    const size = outcome.filePath.endsWith('.pdf') || outcome.filePath.endsWith('.zip')
-      ? formatBytes(await fs.stat(outcome.filePath).then((stat) => stat.size).catch(() => 0))
-      : undefined
+    const filePath = outcome.filePath
+    const filename = path.basename(filePath)
+    const sizeBytes = await fs.stat(filePath).then((stat) => stat.size).catch(() => 0)
+    const size = sizeBytes ? formatBytes(sizeBytes) : undefined
     await session.send(`${summary}${size ? ` · ${size}` : ''}${formatPasswordLine(outcome.options.password)}`)
+
+    const asBuffer = config.fileSendMethod === 'buffer'
+    if (asBuffer && sizeBytes > BUFFER_WARN_SIZE) {
+      logger.warn(`[发送] ${filename} ${formatBytes(sizeBytes)} 超过 ${formatBytes(BUFFER_WARN_SIZE)}，部分协议端可能因单帧上限断连`)
+    }
+
     try {
-      await session.send(h.file(pathToFileURL(outcome.filePath).href, {
-        title: path.basename(outcome.filePath),
-      }))
+      await session.send(asBuffer
+        ? h.file(await fs.readFile(filePath), filename.endsWith('.pdf') ? 'application/pdf' : 'application/zip', { title: filename })
+        : h.file(pathToFileURL(filePath).href, { title: filename }))
     } catch (error) {
-      logger.warn(`[下载] 文件发送失败: ${getErrorMessage(error)}`)
-      await session.send(`${MESSAGES.fileSendFailed} ${outcome.filePath}`)
+      logger.warn(`[发送] ${filename} 失败: ${getErrorMessage(error)}`)
+      await session.send(`${MESSAGES.fileSendFailed} ${filePath}。文件过大时可能是协议端的单帧上限导致，可以调小 imageCompression 的尺寸后重试。`)
       return
     }
-    await removePath(outcome.filePath)
+    await removePath(filePath)
   }
 
   if (outcome.failedIndexes.length) {
@@ -268,7 +276,11 @@ export async function handleGalleryInfo(session: Session, plugin: EhPlugin, inpu
   await session.send(quote(session) + MESSAGES.resolvingGallery)
   const gallery = await resolveGallery(session, plugin, input)
   if (!gallery) return
+  await sendGalleryCard(session, plugin, gallery)
+}
 
+/** 发送画廊详情：card 样式出图，其他样式退化成文本 */
+async function sendGalleryCard(session: Session, plugin: EhPlugin, gallery: GalleryDetail): Promise<void> {
   if (plugin.config.menuStyle === 'card') {
     let cover: Image | undefined
     if (gallery.thumbUrl) {
@@ -289,4 +301,32 @@ export async function handleGalleryInfo(session: Session, plugin: EhPlugin, inpu
   }
 
   await sendResult(session, [renderGalleryInfo(gallery, { showTags: plugin.config.showTags })], false)
+}
+
+/** 随机抽一个画廊，回 Y 直接下载 */
+export async function handleRandom(session: Session, plugin: EhPlugin): Promise<void> {
+  if (!plugin.ensureReady()) {
+    await session.send(MESSAGES.notInitialized)
+    return
+  }
+  await session.send(quote(session) + '正在随机选取画廊…')
+  let gallery: GalleryDetail
+  try {
+    gallery = await plugin.galleries.random()
+  } catch (error) {
+    logger.warn(`[随机] 失败: ${getErrorMessage(error)}`)
+    await session.send(`随机画廊获取失败：${formatNetworkError(error)}。`)
+    return
+  }
+  await sendGalleryCard(session, plugin, gallery)
+  const answer = await promptAnswer(session, plugin.config.promptTimeout * 1000)
+  if (!answer) {
+    await session.send(MESSAGES.promptTimeout)
+    return
+  }
+  if (/^(y|yes|下载|下|好|是)$/i.test(answer)) {
+    await session.execute(`eh.download ${gallery.gid}`)
+    return
+  }
+  await session.send('已取消。')
 }

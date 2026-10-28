@@ -213,6 +213,25 @@ export class GalleryService {
     return this.searchUrl(url, 'e-hentai', signal)
   }
 
+  /**
+   * 随机画廊。站点的 /random/ 只对登录用户开放，匿名访问会 404，
+   * 这时退回热门列表里随机取一条，保证指令始终可用。
+   */
+  async random(signal?: AbortSignal): Promise<GalleryDetail> {
+    try {
+      const { finalUrl } = await this.http.fetchText(`${this.http.origin('e-hentai')}/random/`, { signal })
+      if (/\/g\/\d+\/[0-9a-z]+\//i.test(finalUrl)) return this.resolve(finalUrl, signal)
+    } catch {
+      // 忽略，走下面的热门兜底
+    }
+
+    const listing = await this.popular(signal)
+    const items = listing.items
+    if (!items.length) throw new GalleryNotFoundError('热门列表为空，无法随机')
+    const pick = items[Math.floor(Math.random() * items.length)]
+    return this.resolve(`${this.http.origin('e-hentai')}/g/${pick.gid}/${pick.token}/`, signal)
+  }
+
   /** 热门（仅表站提供） */
   async popular(signal?: AbortSignal): Promise<SearchResult> {
     const url = `${this.http.origin('e-hentai')}/popular`

@@ -14,10 +14,19 @@ export interface PageFile {
   size: number
 }
 
+export interface CompressionOptions {
+  enabled: boolean
+  /** JPEG 质量 */
+  quality: number
+  /** 小于该体积（KB）的 JPEG 不再压缩 */
+  threshold: number
+}
+
 export interface PackageOptions {
   password?: string
   /** PDF 内页长边上限，0 或省略表示不缩放 */
   maxEdge?: number
+  compression?: CompressionOptions
   onProgress?: (done: number, total: number) => void
 }
 
@@ -62,12 +71,16 @@ function readImageSize(buffer: Buffer, extension: string): { width: number, heig
  * PDF 只接受 jpeg / png：已在格式内的直接嵌入，其余格式（webp / gif / bmp）转 JPEG。
  * 尺寸超过 PDF_MAX_EDGE 的页会顺带缩放，避免个别超大图把文件撑大。
  */
-async function preparePdfPage(page: PageFile, maxEdge: number): Promise<PdfReady | undefined> {
+async function preparePdfPage(page: PageFile, maxEdge: number, compression: CompressionOptions): Promise<PdfReady | undefined> {
   const source = await fs.promises.readFile(page.path)
   const ext = page.extension.toLowerCase()
+  const size = readImageSize(source, ext)
+  const oversized = maxEdge > 0 && Boolean(size) && Math.max(size!.width, size!.height) > maxEdge
   if (ext === 'jpg' || ext === 'jpeg') {
-    const size = readImageSize(source, ext)
-    return { buffer: source, ...(size ?? { width: 1, height: 1 }) }
+    // 已经够小的 JPEG 直接嵌入，避免无意义的重新编码
+    const small = !compression.enabled || page.size <= compression.threshold * 1024
+    if (size && small && !oversized) return { buffer: source, ...size }
+    if (!size && !compression.enabled) return { buffer: source, width: 1, height: 1 }
   }
   const image = await decodeImage(source)
   if (!image) {
@@ -81,8 +94,9 @@ async function preparePdfPage(page: PageFile, maxEdge: number): Promise<PdfReady
   }
   try {
     // PNG 直接塞进 PDF 会被展开成原始像素再压缩，体积通常比源文件还大；统一转 JPEG
-    let encoded = await encodeJpeg(image, PDF_JPEG_QUALITY, maxEdge > 0 ? maxEdge : undefined)
-    if (encoded.buffer.length > source.length && PDF_JPEG_QUALITY > 70) {
+    const quality = compression.enabled ? compression.quality : PDF_JPEG_QUALITY
+    let encoded = await encodeJpeg(image, quality, maxEdge > 0 ? maxEdge : undefined)
+    if (encoded.buffer.length > source.length && quality > 70) {
       const lighter = await encodeJpeg(image, 70, maxEdge > 0 ? maxEdge : undefined)
       if (lighter.buffer.length < encoded.buffer.length) encoded = lighter
     }
@@ -94,6 +108,7 @@ async function preparePdfPage(page: PageFile, maxEdge: number): Promise<PdfReady
 
 export async function buildPdf(pages: PageFile[], outPath: string, options: PackageOptions = {}): Promise<PackageResult> {
   const maxEdge = options.maxEdge ?? PDF_MAX_EDGE
+  const compression: CompressionOptions = options.compression ?? { enabled: true, quality: PDF_JPEG_QUALITY, threshold: 0 }
   const { default: PDFDocument } = await import('pdfkit')
   const doc = new PDFDocument({
     autoFirstPage: false,
@@ -113,7 +128,7 @@ export async function buildPdf(pages: PageFile[], outPath: string, options: Pack
   let cursor = 0
   const fill = () => {
     while (inflight.length < concurrency && cursor < pages.length) {
-      inflight.push(preparePdfPage(pages[cursor++], maxEdge))
+      inflight.push(preparePdfPage(pages[cursor++], maxEdge, compression))
     }
   }
   fill()

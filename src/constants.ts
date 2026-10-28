@@ -6,7 +6,7 @@ import type { ImageQuality, OutputFormat, Site } from './types'
 
 export const PLUGIN_NAME = 'ehentai-downloader'
 export const PACKAGE_NAME = `koishi-plugin-${PLUGIN_NAME}`
-export const PLUGIN_VERSION = '1.0.2'
+export const PLUGIN_VERSION = '1.1.0'
 export const PLUGIN_HOMEPAGE = 'https://www.npmjs.com/package/koishi-plugin-ehentai-downloader'
 
 /** 站点基本信息 */
@@ -55,13 +55,17 @@ export const DEFAULT_SEARCH_RESULT_LIMIT = 9
 export const MENU_STYLES = ['card', 'grid', 'text'] as const
 export type MenuStyle = typeof MENU_STYLES[number]
 export const DEFAULT_MENU_STYLE: MenuStyle = 'card'
-export const DEFAULT_PROMPT_TIMEOUT = 120
+export const DEFAULT_PROMPT_TIMEOUT = 60
 export const DEFAULT_CONCURRENCY = 6
 export const DEFAULT_PAGE_INTERVAL_MS = 200
 export const DEFAULT_TIMEOUT_SECONDS = 60
 export const DEFAULT_RETRIES = 2
 export const DEFAULT_RETRY_DELAY_SECONDS = 3
 export const DEFAULT_IMAGE_SEND_DELAY = 1
+/** PDF / ZIP 的发送方式：file 传本地路径，buffer 传文件内容 */
+export const DEFAULT_FILE_SEND_METHOD = 'file' as const
+/** 超过这个体积只记日志，不改变发送方式 */
+export const BUFFER_WARN_SIZE = 32 * 1024 * 1024
 export const DEFAULT_DOWNLOAD_PATH = './data/temp/ehentai-downloader'
 export const DEFAULT_MAX_PAGES = 300
 export const DEFAULT_CACHE_TTL_HOURS = 24
@@ -85,6 +89,8 @@ export const DEFAULT_PDF_MAX_EDGE = 3000
 export const PDF_MAX_EDGE = DEFAULT_PDF_MAX_EDGE
 /** PDF 内嵌图片的重新编码质量 */
 export const PDF_JPEG_QUALITY = 90
+/** 小于该体积（KB）的 JPEG 内页不再重新编码 */
+export const DEFAULT_PDF_COMPRESS_THRESHOLD = 500
 export const MAX_GID = 99999999
 
 /** 允许合并转发的平台 */
